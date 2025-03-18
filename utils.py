@@ -20,7 +20,12 @@ import numpy as np
 import os 
 
 def load_data(data_dir = "../data"):
-
+    """
+    Loads and preprocesses lung scan images and labels.
+    - Converts one-hot encoded labels to categorical format.
+    - Normalizes image pixel values.
+    """
+    
     print("Loading data...\n")
 
     # Load imagaes and labels 
