@@ -1,3 +1,20 @@
+"""
+predict.py - Model Inference for Lung Segmentation
+
+This script loads a trained U-Net model and performs segmentation on new lung scan images.
+- Loads the trained model from `modeling_pipeline.pkl`.
+- Loads new test images from `scan_spring_2025.npy`.
+- Runs inference to predict segmentation masks.
+- Saves the predicted masks to `predictions.npy`.
+
+Acknowledgements:
+This project is part of a Computer Science course on Data Mining and Medical Image Analysis.
+Special thanks to Wake Forest University faculty for providing the dataset and guidance.
+
+Author: Anthony Roca, Dario Santiago Lopez, and ChatGPT
+Date: March 19, 2025
+"""
+
 import torch
 import numpy as np
 import os
