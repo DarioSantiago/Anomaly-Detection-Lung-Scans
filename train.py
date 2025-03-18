@@ -1,3 +1,20 @@
+"""
+train.py - U-Net Model Training for Lung Segmentation
+
+This script trains a U-Net model to segment suspicious regions in lung scan images.
+- Loads preprocessed images and labels.
+- Defines the U-Net architecture for image segmentation.
+- Uses CrossEntropyLoss for multi-class classification.
+- Saves the trained model for later inference.
+
+Acknowledgements:
+This project is part of a Computer Science course on Data Mining and Medical Image Analysis.
+Special thanks to Wake Forest University faculty for providing the dataset and guidance.
+
+Author: Anthony Roca, Dario Santiago Lopez, and ChatGPT 
+Date: March 19, 2025
+"""
+
 import torch 
 import torch.nn as nn 
 import torch.optim as optim 
@@ -120,4 +137,3 @@ def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, s
 
 if __name__ == "__main__": 
     train_model(epochs = 5, batch_size = 4, lr = 0.001, subset = 0.2)
-    
