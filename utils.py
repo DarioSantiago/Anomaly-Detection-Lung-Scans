@@ -1,3 +1,21 @@
+
+"""
+utils.py - Data Loading & Preprocessing for Lung Segmentation
+
+This script handles loading and preprocessing of lung scan images and their corresponding labels.
+- Loads images and labels from .npy files.
+- Converts one-hot encoded labels to categorical format.
+- Normalizes image pixel values.
+- Saves the preprocessed data for training.
+
+Acknowledgements:
+This project is part of a Computer Science course on Data Mining and Medical Image Analysis.
+Special thanks to Wake Forest University faculty for providing the dataset and guidance.
+
+Authors: Anthony Roca, Dario Santiago Lopez, and ChatGPT
+
+Date: March 19, 2025
+"""
 import numpy as np 
 import os 
 
