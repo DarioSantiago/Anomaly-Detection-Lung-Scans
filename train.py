@@ -60,13 +60,21 @@ class UNet(nn.Module):
 
 # ------------------ Custom Dataset ------------------
 class LungSegmentationDataset(Dataset): 
-    def __init__(self, image_file, label_file): 
+    def __init__(self, image_file, label_file, subset = 0.2): # Subset parameter is to take a subset of the data for training (for time efficiency) 
         self.images = np.load(image_file)
         self.labels = np.load(label_file) 
 
         # Convert to PyTorch tensors 
-        self.images = torch.tensor(self.images, dtype = torch.float32).permute(0, 3, 1, 2)  # Change to (num_images, channels, height, width)
+        self.images = torch.tensor(self.images, dtype = torch.float32).permute(0, 3, 1, 2)   # Change to (num_images, channels, height, width)
         self.labels = torch.tensor(self.labels, dtype = torch.long)                          # Change to (num_images, height, width)
+
+        # Reduce the dataset size for training (soley for time efficiency) 
+        num_samples = int(len(self.images) * subset)
+        indices = torch.randperm(len(self.images))[:num_samples] # Randomly select the subset 
+        self.images = self.images[indices]
+        self.labels = self.labels[indices]
+        print(f"Using {num_samples} samples for training.\n")
+
 
     def __len__(self): 
         return len(self.images) 
@@ -75,13 +83,14 @@ class LungSegmentationDataset(Dataset):
         return self.images[idx], self.labels[idx]
 
 # ------------------ Training Pipeline ------------------ 
-def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001): 
+def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, subset = 0.2): 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}\n")
 
     dataset = LungSegmentationDataset( 
         os.path.join(data_dir, "preprocessed_images.npy"), 
-        os.path.join(data_dir, "preprocessed_labels.npy")
+        os.path.join(data_dir, "preprocessed_labels.npy"), 
+        subset = subset 
     )
     dataloader = DataLoader(dataset, batch_size = batch_size, shuffle = True)
 
@@ -110,4 +119,5 @@ def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001):
     print("Model saved successfully!\n")
 
 if __name__ == "__main__": 
-    train_model(epochs = 5, batch_size = 4, lr = 0.001)
+    train_model(epochs = 5, batch_size = 4, lr = 0.001, subset = 0.2)
+    
