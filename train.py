@@ -22,6 +22,14 @@ import numpy as np
 import os 
 from torch.utils.data import DataLoader, Dataset 
 import torch.nn.functional as F 
+import torchvision.transforms as transforms 
+
+# ------------------ Data Augmentation ------------------
+train_transforms = transforms.Compose([
+    transforms.RandomHorizontalFlip(),  # Randomly flip images
+    transforms.RandomRotation(10),  # Rotate by ±10 degrees
+    transforms.ColorJitter(brightness=0.2, contrast=0.2),  # Adjust brightness/contrast
+])
 
 # ------------------ U-Net Model ------------------
 class UNet(nn.Module): 
@@ -75,11 +83,13 @@ class UNet(nn.Module):
         
         return self.final_conv(d1)
 
+
 # ------------------ Custom Dataset ------------------
 class LungSegmentationDataset(Dataset): 
-    def __init__(self, image_file, label_file, subset = 0.2): # Subset parameter is to take a subset of the data for training (for time efficiency) 
+    def __init__(self, image_file, label_file, subset = 1.0, augment = False): # Subset parameter is to take a subset of the data for training (for time efficiency) 
         self.images = np.load(image_file)
         self.labels = np.load(label_file) 
+        self.augment = augment
 
         # Convert to PyTorch tensors 
         self.images = torch.tensor(self.images, dtype = torch.float32).permute(0, 3, 1, 2)   # Change to (num_images, channels, height, width)
@@ -97,43 +107,83 @@ class LungSegmentationDataset(Dataset):
         return len(self.images) 
 
     def __getitem__(self, idx): 
-        return self.images[idx], self.labels[idx]
+        image, label = self.images[idx], self.labels[idx]
+        if self.augment:
+            image = train_transforms(image)
+        return image, label
 
 # ------------------ Training Pipeline ------------------ 
-def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, subset = 0.2): 
+def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, subset = 1.0): 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}\n")
 
     dataset = LungSegmentationDataset( 
         os.path.join(data_dir, "preprocessed_images.npy"), 
         os.path.join(data_dir, "preprocessed_labels.npy"), 
-        subset = subset 
+        subset=subset, 
+        augment=True
     )
     dataloader = DataLoader(dataset, batch_size = batch_size, shuffle = True)
 
     model = UNet().to(device) 
-    optimizer = optim.Adam(model.parameters(), lr = lr) 
-    criterion = nn.CrossEntropyLoss() 
+    
+    # Compute class weights for CrossEntropyLoss since the dataset is imbalanced 
+    labels = np.load(os.path.join(data_dir, "preprocessed_labels.npy"))
+    unique_labels, counts = np.unique(labels, return_counts = True)
+    total_pixels = sum(counts) 
 
-    print("Starting training...\n")
+    # Compute inverse frequency for each class 
+    class_weights = torch.tensor([total_pixels / (count + 1e-6) for count in counts], dtype = torch.float32).to(device)
+    print(f"Using class weights: {class_weights.cpu().numpy()}\n")
+
+    # Apply weights to CrossEntropyLoss
+    criterion = nn.CrossEntropyLoss(weight = class_weights)
+    optimizer = optim.Adam(model.parameters(), lr = lr)
+
+    print("Starting training...")
 
     for epoch in range(epochs): 
         model.train()
         epoch_loss = 0.0 
-        for images, labels in dataloader: 
-            images, labels = images.to(device), labels.to(device) 
+        for images, batch_labels in dataloader: 
+            images, batch_labels = images.to(device), batch_labels.to(device) 
             optimizer.zero_grad() 
             outputs = model(images) 
-            loss = criterion(outputs, labels) 
+            loss = criterion(outputs, batch_labels) 
             loss.backward() 
             optimizer.step() 
             epoch_loss += loss.item() 
         
-        print(f"Epoch [{epoch + 1} / {epochs}], Loss: {epoch_loss / len(dataloader):.4f}\n")
+        print(f"Epoch [{epoch + 1} / {epochs}], Loss: {epoch_loss / len(dataloader):.4f}")
+
+        # Debugging:Check training predictions 
+        check_predictions(model, dataloader, device)
     
     # Save the trained model 
     torch.save(model.state_dict(), "../output/modeling_pipeline.pkl")
-    print("Model saved successfully!\n")
+    print("Model saved successfully!")
+
+# ------------------ Debugging Function(s) ------------------
+def check_predictions(model, dataloader, device): 
+    model.eval() 
+    try:
+        sample_images, _ = next(iter(dataloader))  # Get a small batch of images  
+    except StopIteration:
+        print("Dataloader is empty, skipping prediction check.")
+        return
+    
+    sample_images = sample_images.to(device)
+
+    with torch.no_grad(): 
+        output = model(sample_images)
+        pred_classes = torch.argmax(output, dim = 1).cpu().numpy() # Get the predicted classes 
+        unique_classes, counts = np.unique(pred_classes, return_counts = True)
+    
+    print(f"Debugging Model Predictions:")
+    print(f"- Prediction shape: {pred_classes.shape}")  # Expected (batch_size, height, width)
+    print(f"- Unique classes in batch predictions: {unique_classes}")
+    print(f"- Class counts: {dict(zip(unique_classes, counts))}\n")
 
 if __name__ == "__main__": 
-    train_model(epochs = 5, batch_size = 4, lr = 0.001, subset = 0.2)
+    train_model(epochs = 10, batch_size = 4, lr = 0.001, subset = 1.0)
+    print("Training complete!\n")
