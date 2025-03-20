@@ -42,11 +42,38 @@ def load_data(data_dir = "../data"):
     print(f"Labels converted to categorical format with shape {cat_labels.shape}.")
     # print(f"Cateogorical labels shape: {cat_labels.shape}") # used for debugging 
 
+    # Debugging 
+    unique_labels, counts = np.unique(cat_labels, return_counts = True)
+    class_distribution = dict(zip(unique_labels, counts))
+    print(f"Class distribution in the training labels: {class_distribution}\n") 
+
     return scan_images, cat_labels 
+
+
+def check_label_distribution(data_dir="../data"):
+    """
+    Checks the class distribution in training labels. Skips test labels if not available.
+    """
+    # Load training labels
+    train_labels = np.load(os.path.join(data_dir, "labels_fall_2019.npy"))
+    train_class_counts = np.unique(train_labels, return_counts=True)
+    print(f"Training label distribution: {dict(zip(train_class_counts[0], train_class_counts[1]))}")
+
+    #  Skip test label check if the file doesn't exist
+    test_label_path = os.path.join(data_dir, "labels_spring_2025.npy")
+    if os.path.exists(test_label_path):
+        test_labels = np.load(test_label_path)
+        test_class_counts = np.unique(test_labels, return_counts=True)
+        print(f"Test label distribution: {dict(zip(test_class_counts[0], test_class_counts[1]))}")
+    else:
+        print("Test labels not found. Predictions will be manually evaluated.\n")
 
 if __name__ == "__main__": 
     images, labels = load_data()
     np.save("../data/preprocessed_images.npy", images)
     np.save("../data/preprocessed_labels.npy", labels)
     print("Preprocessed data saved successfully!\n")
+
+    # Run label distribution check
+    check_label_distribution()
 
