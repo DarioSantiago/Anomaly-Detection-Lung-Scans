@@ -22,14 +22,6 @@ import numpy as np
 import os 
 from torch.utils.data import DataLoader, Dataset 
 import torch.nn.functional as F 
-import torchvision.transforms as transforms 
-
-# ------------------ Data Augmentation ------------------
-train_transforms = transforms.Compose([
-    transforms.RandomHorizontalFlip(),  # Randomly flip images
-    transforms.RandomRotation(10),  # Rotate by ±10 degrees
-    transforms.ColorJitter(brightness=0.2, contrast=0.2),  # Adjust brightness/contrast
-])
 
 # ------------------ U-Net Model ------------------
 class UNet(nn.Module): 
@@ -83,13 +75,11 @@ class UNet(nn.Module):
         
         return self.final_conv(d1)
 
-
 # ------------------ Custom Dataset ------------------
 class LungSegmentationDataset(Dataset): 
-    def __init__(self, image_file, label_file, subset = 1.0, augment = False): # Subset parameter is to take a subset of the data for training (for time efficiency) 
+    def __init__(self, image_file, label_file, subset = 1.0): # Subset parameter is to take a subset of the data for training (for time efficiency) 
         self.images = np.load(image_file)
         self.labels = np.load(label_file) 
-        self.augment = augment
 
         # Convert to PyTorch tensors 
         self.images = torch.tensor(self.images, dtype = torch.float32).permute(0, 3, 1, 2)   # Change to (num_images, channels, height, width)
@@ -107,10 +97,7 @@ class LungSegmentationDataset(Dataset):
         return len(self.images) 
 
     def __getitem__(self, idx): 
-        image, label = self.images[idx], self.labels[idx]
-        if self.augment:
-            image = train_transforms(image)
-        return image, label
+        return self.images[idx], self.labels[idx]
 
 # ------------------ Training Pipeline ------------------ 
 def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, subset = 1.0): 
@@ -120,8 +107,7 @@ def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, s
     dataset = LungSegmentationDataset( 
         os.path.join(data_dir, "preprocessed_images.npy"), 
         os.path.join(data_dir, "preprocessed_labels.npy"), 
-        subset=subset, 
-        augment=True
+        subset = subset 
     )
     dataloader = DataLoader(dataset, batch_size = batch_size, shuffle = True)
 
@@ -134,6 +120,7 @@ def train_model(data_dir = "../data", epochs = 10, batch_size = 4, lr = 0.001, s
 
     # Compute inverse frequency for each class 
     class_weights = torch.tensor([total_pixels / (count + 1e-6) for count in counts], dtype = torch.float32).to(device)
+
     print(f"Using class weights: {class_weights.cpu().numpy()}\n")
 
     # Apply weights to CrossEntropyLoss
@@ -177,12 +164,9 @@ def check_predictions(model, dataloader, device):
     with torch.no_grad(): 
         output = model(sample_images)
         pred_classes = torch.argmax(output, dim = 1).cpu().numpy() # Get the predicted classes 
-        unique_classes, counts = np.unique(pred_classes, return_counts = True)
+        unique_classes = np.unique(pred_classes)
     
-    print(f"Debugging Model Predictions:")
-    print(f"- Prediction shape: {pred_classes.shape}")  # Expected (batch_size, height, width)
-    print(f"- Unique classes in batch predictions: {unique_classes}")
-    print(f"- Class counts: {dict(zip(unique_classes, counts))}\n")
+    print(f"Unique classes in model predictions during training: {unique_classes}\n")
 
 if __name__ == "__main__": 
     train_model(epochs = 10, batch_size = 4, lr = 0.001, subset = 1.0)
